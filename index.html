@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sertifikat tekshirish — Vision School</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{
+      font-family:'Segoe UI',Arial,sans-serif;
+      background: linear-gradient(135deg,#0A1628 0%,#0F2040 100%);
+      min-height:100vh;
+      display:flex;align-items:center;justify-content:center;
+      padding:20px;
+    }
+    .card{
+      background:#fff;border-radius:16px;
+      box-shadow:0 8px 40px rgba(0,0,0,.5);
+      padding:36px 40px;max-width:480px;width:100%;text-align:center;
+    }
+    .logo-circle{
+      width:56px;height:56px;border-radius:50%;
+      background:#0A1628;
+      display:inline-flex;align-items:center;justify-content:center;
+      margin-bottom:10px;
+    }
+    .logo-circle span{color:#C9A84C;font-size:26px;font-weight:700;font-family:Georgia,serif;}
+    .logo-name{font-size:18px;font-weight:700;color:#0A1628;letter-spacing:3px;margin-bottom:2px;}
+    .logo-sub{font-size:9px;color:#C9A84C;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px;}
+    .gold-bar{width:60px;height:3px;background:linear-gradient(to right,#C9A84C,#E8C97A,#C9A84C);margin:0 auto 16px;}
+    h2{font-size:13px;color:#374151;margin-bottom:16px;letter-spacing:2px;text-transform:uppercase;}
+    .divider{width:120px;height:1px;background:linear-gradient(to right,transparent,#C9A84C,transparent);margin:0 auto 20px;}
+    .badge{
+      display:inline-flex;align-items:center;gap:8px;
+      font-size:14px;font-weight:700;padding:10px 28px;
+      border-radius:8px;margin-bottom:20px;letter-spacing:.5px;
+    }
+    .loading{background:#EFF6FF;color:#1D4ED8;}
+    .valid{background:#ECFDF5;color:#065F46;}
+    .invalid{background:#FEF2F2;color:#991B1B;}
+
+    .student-name{
+      font-size:28px;font-weight:700;color:#0A1628;
+      font-family:Georgia,serif;font-style:italic;
+      margin:8px 0 4px;line-height:1.2;
+    }
+    .mock-type{
+      font-size:10px;letter-spacing:2px;text-transform:uppercase;
+      color:#fff;background:#0369A1;
+      padding:3px 14px;border-radius:12px;display:inline-block;
+      margin-bottom:16px;
+    }
+    .mock-type.diagnostic{background:#4F46E5;}
+
+    /* Score boxes */
+    .scores-grid{
+      display:flex;gap:8px;justify-content:center;
+      margin-bottom:20px;flex-wrap:wrap;
+    }
+    .sbox{
+      text-align:center;
+      border:1.5px solid #D1D5DB;border-radius:8px;
+      padding:10px 12px;min-width:72px;background:#FAFAF8;
+    }
+    .sbox.overall{
+      border:2px solid #0A1628;background:#0A1628;
+      min-width:86px;
+    }
+    .sbox.cefr-box{border:2px solid #C9A84C;}
+    .sbox .lbl{font-size:9px;color:#6B7280;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;}
+    .sbox .val{font-size:24px;font-weight:700;color:#0A1628;}
+    .sbox.overall .lbl{color:#C9A84C;font-size:8px;}
+    .sbox.overall .val{font-size:30px;color:#fff;}
+
+    table{width:100%;border-collapse:collapse;text-align:left;margin-top:4px;}
+    td{padding:9px 8px;font-size:13px;border-bottom:1px solid #F3F4F6;}
+    td:first-child{color:#6B7280;width:45%;}
+    td:last-child{font-weight:600;color:#0A1628;}
+    .error-msg{color:#991B1B;font-size:13px;margin-top:10px;}
+    .footer{margin-top:24px;font-size:10px;color:#9CA3AF;letter-spacing:1px;}
+    .cert-id-box{
+      margin-top:16px;background:#F8FAFC;border-radius:8px;
+      padding:10px;font-size:11px;color:#6B7280;letter-spacing:1px;
+    }
+    .cert-id-box span{font-weight:700;color:#0A1628;font-family:monospace;font-size:13px;}
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo-circle"><span>V</span></div>
+  <div class="logo-name">VISION SCHOOL</div>
+  <div class="logo-sub">English Language Academy · Tashkent</div>
+  <div class="gold-bar"></div>
+  <h2>Sertifikat Tasdiqlash</h2>
+  <div class="divider"></div>
+
+  <div id="status" class="badge loading">⏳ Tekshirilmoqda...</div>
+  <div id="details"></div>
+  <p class="error-msg" id="error-msg"></p>
+
+  <div class="footer">vision-school.uz · Tashkent, O'zbekiston</div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://ryoohimpbyrovldbudzi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5b29oaW1wYnlyb3ZsZGJ1ZHppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MDk2NDMsImV4cCI6MjA5NzA4NTY0M30._Ax3xWBdPUg6UzcFsLX5FRSkFPtMFH9jlaRrTlkMR1M";
+
+const params = new URLSearchParams(location.search);
+const certId = params.get("id");
+
+function cefr(s){
+  if(s>=8.5)return"C2";if(s>=7)return"C1";
+  if(s>=5.5)return"B2";if(s>=4)return"B1";return"A2";
+}
+
+async function verify(){
+  const statusEl = document.getElementById("status");
+  const detailsEl = document.getElementById("details");
+  const errorEl = document.getElementById("error-msg");
+
+  if(!certId){
+    statusEl.className="badge invalid";
+    statusEl.textContent="❌ Noto'g'ri havola";
+    errorEl.textContent="URL da sertifikat ID topilmadi.";
+    return;
+  }
+
+  try{
+    // Query mock_results joined with students
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/mock_results?cert_id=eq.${certId}&select=*,students(full_name,potok,guruh)`,
+      {headers:{
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+      }}
+    );
+    const data = await res.json();
+
+    if(!Array.isArray(data) || data.length === 0){
+      statusEl.className="badge invalid";
+      statusEl.textContent="❌ Topilmadi";
+      errorEl.textContent="Bu sertifikat bazamizda mavjud emas.";
+      return;
+    }
+
+    const r = data[0];
+    const student = r.students || {};
+    const fullName = student.full_name || "—";
+    const overall = r.overall_band;
+    const cefrVal = r.cefr_level || cefr(overall);
+    const mockDate = r.mock_date ? new Date(r.mock_date).toLocaleDateString("uz-UZ",{year:"numeric",month:"long",day:"numeric"}) : "—";
+    const typeLabel = r.mock_type === "final" ? "Final Mock Test" : "Diagnostic Mock Test";
+    const typeClass = r.mock_type === "final" ? "" : "diagnostic";
+    const certNumShort = (r.cert_id||"").slice(0,8).toUpperCase();
+
+    statusEl.className = "badge valid";
+    statusEl.textContent = "✅ Tasdiqlandi";
+
+    const ovVal = overall === Math.floor(overall) ? Math.floor(overall) : overall;
+    const lVal = r.listening === Math.floor(r.listening) ? Math.floor(r.listening) : r.listening;
+    const rVal = r.reading  === Math.floor(r.reading)  ? Math.floor(r.reading)  : r.reading;
+    const wVal = r.writing  === Math.floor(r.writing)  ? Math.floor(r.writing)  : r.writing;
+    const sVal = r.speaking === Math.floor(r.speaking) ? Math.floor(r.speaking) : r.speaking;
+
+    detailsEl.innerHTML = `
+      <div class="student-name">${fullName}</div>
+      <div class="mock-type ${typeClass}">${typeLabel}</div>
+
+      <div class="scores-grid">
+        <div class="sbox">
+          <div class="lbl">Listening</div>
+          <div class="val">${lVal}</div>
+        </div>
+        <div class="sbox">
+          <div class="lbl">Reading</div>
+          <div class="val">${rVal}</div>
+        </div>
+        <div class="sbox">
+          <div class="lbl">Writing</div>
+          <div class="val">${wVal}</div>
+        </div>
+        <div class="sbox">
+          <div class="lbl">Speaking</div>
+          <div class="val">${sVal}</div>
+        </div>
+        <div class="sbox overall">
+          <div class="lbl">Overall Band</div>
+          <div class="val">${ovVal}</div>
+        </div>
+        <div class="sbox cefr-box">
+          <div class="lbl">CEFR</div>
+          <div class="val">${cefrVal}</div>
+        </div>
+      </div>
+
+      <table>
+        <tr><td>O'quvchi</td><td>${fullName}</td></tr>
+        <tr><td>Oqish sana</td><td>${mockDate}</td></tr>
+        <tr><td>Potok / Guruh</td><td>${student.potok || "—"} / ${student.guruh || "—"}</td></tr>
+      </table>
+
+      <div class="cert-id-box">
+        Sertifikat ID: <span>${certNumShort}</span>
+      </div>`;
+
+  } catch(e){
+    statusEl.className="badge invalid";
+    statusEl.textContent="⚠️ Xato";
+    errorEl.textContent="Server bilan bog'lanib bo'lmadi.";
+    console.error(e);
+  }
+}
+verify();
+</script>
+</body>
+</html>
