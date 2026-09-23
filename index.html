@@ -113,7 +113,7 @@ function cefr(s){
   if(s>=5.5)return"B2";if(s>=4)return"B1";return"A2";
 }
 
-async function verify(){
+async function eskiBazadanTekshir(){
   const statusEl = document.getElementById("status");
   const detailsEl = document.getElementById("details");
   const errorEl = document.getElementById("error-msg");
@@ -148,7 +148,16 @@ async function verify(){
     const fullName = student.full_name || "—";
     const overall = r.overall_band;
     const cefrVal = r.cefr_level || cefr(overall);
-    const mockDate = r.mock_date ? new Date(r.mock_date).toLocaleDateString("uz-UZ",{year:"numeric",month:"long",day:"numeric"}) : "—";
+    const mockDate = (() => {
+      if (!r.mock_date) return "—";
+      // mock_date bazada "DD.MM.YYYY" formatida saqlangan
+      const parts = r.mock_date.split(".");
+      if (parts.length === 3) {
+        const d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        if (!isNaN(d)) return d.toLocaleDateString("uz-UZ",{year:"numeric",month:"long",day:"numeric"});
+      }
+      return r.mock_date;
+    })();
     const typeLabel = r.mock_type === "final" ? "Final Mock Test" : "Diagnostic Mock Test";
     const typeClass = r.mock_type === "final" ? "" : "diagnostic";
     const certNumShort = (r.cert_id||"").slice(0,8).toUpperCase();
@@ -210,7 +219,75 @@ async function verify(){
     console.error(e);
   }
 }
-verify();
+
+/* =====================================================================================
+ * IKKI BAZA (2026-09-23). Bitta tekshirish sahifasi - ikki xil sertifikat:
+ *   1) ILOVADAN chiqqan (Vision App bazasi, `VS-2026-NNNNNN`) - `sertifikat_tekshir` RPC;
+ *   2) ESKI BOT chiqargan 441 ta qog'oz (`VS-MOCK-NNNNNN`) - pastdagi `eskiBazadanTekshir()`,
+ *      u O'ZGARTIRILMADI. Shohruh: eski sertifikatlar eski bazada qoladi.
+ * RPC har doim BITTA qator qaytaradi; "topilmadi" - `topildi = false`, bo'sh massiv emas.
+ * Jadvalning o'zi tashqariga YOPIQ (401) - ro'yxat olib bo'lmaydi, faqat aniq kod bo'yicha.
+ * ===================================================================================== */
+const VISION_URL = "https://tmxhxxcypbwfhjltymui.supabase.co";
+const VISION_KALIT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRteGh4eGN5cGJ3ZmhqbHR5bXVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwMzU0MDQsImV4cCI6MjEwNDYxMTQwNH0.C4BT_COvKE0THpeiSWKeCzjl_1i81MbXJDqT22GH5Hk";
+
+function bandMatni(x){ const n = Number(x); return Number.isFinite(n) ? n.toFixed(1) : "—"; }
+function sanaToshkent(iso){
+  if(!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d) ? "—" : d.toLocaleDateString("uz-UZ",{year:"numeric",month:"long",day:"numeric",timeZone:"Asia/Tashkent"});
+}
+function xavfsiz(t){ return String(t == null ? "—" : t).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+async function bizningBazadanTekshir(){
+  try{
+    const res = await fetch(`${VISION_URL}/rest/v1/rpc/sertifikat_tekshir`, {
+      method: "POST",
+      headers: { apikey: VISION_KALIT, Authorization: `Bearer ${VISION_KALIT}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_cert_id: certId }),
+    });
+    if(!res.ok) return false;                 // bizning baza javob bermasa - eski bazaga o'tamiz
+    const q = await res.json();
+    const r = Array.isArray(q) ? q[0] : q;
+    if(!r || r.topildi !== true) return false; // topilmadi - eski bazaga o'tamiz
+
+    const statusEl = document.getElementById("status");
+    const detailsEl = document.getElementById("details");
+    statusEl.className = "badge valid";
+    statusEl.textContent = "✅ Tasdiqlandi";
+    const tur = r.mock_turi === "final" ? "Final Mock Test" : r.mock_turi === "diagnostic" ? "Diagnostic Mock Test" : "Mock IELTS Test";
+    const turKlass = r.mock_turi === "final" ? "" : "diagnostic";
+    const guruh = r.guruh_matni ? `<tr><td>Guruh</td><td>${xavfsiz(r.guruh_matni)}</td></tr>` : "";
+    detailsEl.innerHTML = `
+      <div class="student-name">${xavfsiz(r.ism)}</div>
+      <div class="mock-type ${turKlass}">${tur}</div>
+      <div class="scores-grid">
+        <div class="sbox"><div class="lbl">Listening</div><div class="val">${bandMatni(r.listening)}</div></div>
+        <div class="sbox"><div class="lbl">Reading</div><div class="val">${bandMatni(r.reading)}</div></div>
+        <div class="sbox"><div class="lbl">Writing</div><div class="val">${bandMatni(r.writing)}</div></div>
+        <div class="sbox"><div class="lbl">Speaking</div><div class="val">${bandMatni(r.speaking)}</div></div>
+        <div class="sbox overall"><div class="lbl">Overall Band</div><div class="val">${bandMatni(r.umumiy)}</div></div>
+        <div class="sbox cefr-box"><div class="lbl">CEFR</div><div class="val">${xavfsiz(r.cefr)}</div></div>
+      </div>
+      <table>
+        <tr><td>O'quvchi</td><td>${xavfsiz(r.ism)}</td></tr>
+        <tr><td>Berilgan sana</td><td>${sanaToshkent(r.berilgan)}</td></tr>
+        ${guruh}
+      </table>
+      <div class="cert-id-box">Sertifikat raqami: <span>${xavfsiz(r.raqam)}</span></div>`;
+    return true;
+  }catch(e){
+    console.error("Vision bazasi:", e);
+    return false;                              // tarmoq xatosi - eski bazaga o'tamiz
+  }
+}
+
+async function tekshir(){
+  if(certId && await bizningBazadanTekshir()) return;
+  await eskiBazadanTekshir();                  // eski 441 ta sertifikat - o'zgarishsiz yo'l
+}
+
+tekshir();
 </script>
 </body>
 </html>
