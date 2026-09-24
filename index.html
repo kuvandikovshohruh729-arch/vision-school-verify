@@ -255,6 +255,28 @@ async function bizningBazadanTekshir(){
     const detailsEl = document.getElementById("details");
     statusEl.className = "badge valid";
     statusEl.textContent = "✅ Tasdiqlandi";
+
+    // 2026-09-24 (TZ-264): GE DARAJA SERTIFIKATI (`VS-GE-YYYY-NNNNNN`). Bandlar yo'q (NULL) - faqat daraja va CEFR.
+    // `guruh_matni` = "General English - <Daraja>".
+    if (String(r.raqam || "").startsWith("VS-GE-")) {
+      const gm = String(r.guruh_matni || "");
+      const daraja = gm.includes(" - ") ? gm.slice(gm.indexOf(" - ") + 3) : (gm || "—");
+      detailsEl.innerHTML = `
+      <div class="student-name">${xavfsiz(r.ism)}</div>
+      <div class="mock-type">General English Level Certificate</div>
+      <div class="scores-grid">
+        <div class="sbox overall"><div class="lbl">Level</div><div class="val">${xavfsiz(daraja)}</div></div>
+        <div class="sbox cefr-box"><div class="lbl">CEFR</div><div class="val">${xavfsiz(r.cefr)}</div></div>
+      </div>
+      <table>
+        <tr><td>O'quvchi</td><td>${xavfsiz(r.ism)}</td></tr>
+        <tr><td>Berilgan sana</td><td>${sanaToshkent(r.berilgan)}</td></tr>
+        <tr><td>Kurs</td><td>${xavfsiz(gm || "General English")}</td></tr>
+      </table>
+      <div class="cert-id-box">Sertifikat raqami: <span>${xavfsiz(r.raqam)}</span></div>`;
+      return true;
+    }
+
     const tur = r.mock_turi === "final" ? "Final Mock Test" : r.mock_turi === "diagnostic" ? "Diagnostic Mock Test" : "Mock IELTS Test";
     const turKlass = r.mock_turi === "final" ? "" : "diagnostic";
     const guruh = r.guruh_matni ? `<tr><td>Guruh</td><td>${xavfsiz(r.guruh_matni)}</td></tr>` : "";
